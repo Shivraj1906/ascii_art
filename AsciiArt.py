@@ -190,7 +190,7 @@ class AsciiArt:
     # after converting to ascii
     def add_bloom_data(self) -> None:
         # make sure both have same shape
-        self.bloom_data = self.bloom_data[:self.image.shape[0], :]
+        self.bloom_data = self.bloom_data[:self.image.shape[0], :self.image.shape[1]]
         self.image += self.bloom_data
 
     # store image to given path
