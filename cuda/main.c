@@ -27,7 +27,9 @@ static void usage(FILE *file) {
         "  --edge-votes INTEGER      Require strictly more votes (default 12)\n"
         "  --bloom-threshold VALUE   Bright-pass threshold (default 0.8)\n"
         "  --bloom-sigma VALUE       Bloom Gaussian sigma (default 50)\n"
+        "  --bloom-method METHOD     auto, direct, or fft (default auto)\n"
         "  --device INTEGER          CUDA device ordinal (default 0)\n"
+        "  --png-compression INTEGER Lossless PNG level 0..9 (default 1; 6+ smaller)\n"
         "  --help                    Show this help\n");
 }
 
@@ -53,6 +55,7 @@ int main(int argc, char **argv) {
     const char *input_path = NULL, *output_path = NULL;
     const char *fill_path = "res/fillASCII.png", *edge_path = "res/edgesASCII.png";
     const char *edges_output = NULL, *fill_output = NULL;
+    int compression = 1;
     for (int i = 1; i < argc; ++i) {
         const char *key = argv[i];
         if (!strcmp(key, "--help")) { usage(stdout); return 0; }
@@ -79,7 +82,14 @@ int main(int argc, char **argv) {
         else if (!strcmp(key, "--edge-votes")) valid = parse_int(value, &options.edge_votes);
         else if (!strcmp(key, "--bloom-threshold")) valid = parse_float(value, &options.bloom_threshold);
         else if (!strcmp(key, "--bloom-sigma")) valid = parse_float(value, &options.bloom_sigma);
+        else if (!strcmp(key, "--bloom-method")) {
+            if (!strcmp(value, "auto")) options.bloom_method = 0;
+            else if (!strcmp(value, "direct")) options.bloom_method = 1;
+            else if (!strcmp(value, "fft")) options.bloom_method = 2;
+            else valid = 0;
+        }
         else if (!strcmp(key, "--device")) valid = parse_int(value, &options.device);
+        else if (!strcmp(key, "--png-compression")) valid = parse_int(value, &compression) && compression <= 9;
         else { fprintf(stderr, "Unknown option: %s\n", key); return 2; }
         if (!valid) { fprintf(stderr, "Invalid value for %s: %s\n", key, value); return 2; }
     }
@@ -110,9 +120,9 @@ int main(int argc, char **argv) {
                        &output, error, sizeof(error))) {
         fprintf(stderr, "CUDA conversion failed: %s\n", error); goto cleanup;
     }
-    if (!image_write_gray(output_path, output.width, output.height, output.final_pixels, error, sizeof(error)) ||
-        (edges_output && !image_write_gray(edges_output, output.width, output.height, output.edge_pixels, error, sizeof(error))) ||
-        (fill_output && !image_write_gray(fill_output, output.width, output.height, output.fill_pixels, error, sizeof(error)))) {
+    if (!image_write_gray_compressed(output_path, output.width, output.height, output.final_pixels, compression, error, sizeof(error)) ||
+        (edges_output && !image_write_gray_compressed(edges_output, output.width, output.height, output.edge_pixels, compression, error, sizeof(error))) ||
+        (fill_output && !image_write_gray_compressed(fill_output, output.width, output.height, output.fill_pixels, compression, error, sizeof(error)))) {
         fprintf(stderr, "Image write failed: %s\n", error); goto cleanup;
     }
     timespec_get(&stop, TIME_UTC);

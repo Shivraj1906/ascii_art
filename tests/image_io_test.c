@@ -21,6 +21,15 @@ int main(void) {
     image_free(&image);
     CHECK(image.rgb == NULL && image.width == 0);
     CHECK(!image_write_gray("io_test.png", 0, 2, pixels, error, sizeof(error)));
+    for (int level = 0; level <= 9; ++level) {
+        CHECK(image_write_gray_compressed("io_test.png",3,2,pixels,level,error,sizeof(error)));
+        CHECK(image_load("io_test.png",&image,error,sizeof(error)));
+        for (int i = 0; i < 6; ++i)
+            for (int c = 0; c < 3; ++c) CHECK(image.rgb[3*i+c] == pixels[i]);
+        image_free(&image);
+    }
+    CHECK(!image_write_gray_compressed("io_test.png",3,2,pixels,10,error,sizeof(error)));
+    CHECK(!image_write_gray("missing_io_directory/io.png",3,2,pixels,error,sizeof(error)));
     CHECK(!image_load("missing_io_test.png", &image, error, sizeof(error)));
 
     /* Transparent pixels must retain RGB, rather than being flattened to black. */

@@ -1,4 +1,4 @@
-/* Independent conversions in one process: the context stays warm, buffers do not. */
+/* Independent conversions by default; optional reuse also keeps a CUDA graph. */
 #define _POSIX_C_SOURCE 200809L
 #include "ascii_cuda.h"
 #include "image_io.h"
@@ -24,13 +24,15 @@ static int integer(const char *text, int minimum, int maximum) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 9) {
-        fprintf(stderr, "Usage: ascii_benchmark INPUT OUTPUT.png METRICS.json WARMUP REPEAT BLOOM PROFILE DEVICE\n");
+    if (argc < 9 || argc > 11) {
+        fprintf(stderr, "Usage: ascii_benchmark INPUT OUTPUT.png METRICS.json WARMUP REPEAT BLOOM PROFILE DEVICE [REUSE [BLOOM_METHOD]]\n");
         return 2;
     }
     int warmup = integer(argv[4], 0, 10000), repeat = integer(argv[5], 1, 10000);
     int bloom = integer(argv[6], 0, 1), profile = integer(argv[7], 0, 1), device = integer(argv[8], 0, 10000);
-    if (warmup < 0 || repeat < 0 || bloom < 0 || profile < 0 || device < 0) {
+    int reuse = argc >= 10 ? integer(argv[9], 0, 1) : 0;
+    int method = argc == 11 ? integer(argv[10], 0, 2) : 0;
+    if (warmup < 0 || repeat < 0 || bloom < 0 || profile < 0 || device < 0 || reuse < 0 || method < 0) {
         fprintf(stderr, "Invalid benchmark argument\n"); return 2;
     }
     if (!strcmp(argv[1], argv[2]) || !strcmp(argv[1], argv[3]) || !strcmp(argv[2], argv[3])) {
@@ -38,10 +40,12 @@ int main(int argc, char **argv) {
     }
     FILE *metrics = fopen(argv[3], "w");
     if (!metrics) { perror("metrics file"); return 1; }
-    fprintf(metrics, "{\"implementation\":\"cuda\",\"warmup\":%d,\"profile\":%d,\"samples\":[\n", warmup, profile);
+    fprintf(metrics, "{\"implementation\":\"cuda\",\"warmup\":%d,\"profile\":%d,\"reuse\":%d,\"samples\":[\n", warmup, profile, reuse);
     AsciiOptions options;
     ascii_options_default(&options);
     options.bloom = bloom; options.profile = profile; options.device = device;
+    options.bloom_method = method;
+    AsciiContext *context = NULL;
     for (int iteration = 0; iteration < warmup + repeat; ++iteration) {
         Image input = {0}, fill = {0}, edge = {0};
         AsciiOutput output = {0};
@@ -51,7 +55,11 @@ int main(int argc, char **argv) {
             !image_load("res/fillASCII.png", &fill, error, sizeof(error)) ||
             !image_load("res/edgesASCII.png", &edge, error, sizeof(error))) goto failed;
         double loaded = milliseconds();
-        if (!ascii_convert(input.rgb, input.width, input.height, fill.rgb, fill.width, fill.height,
+        if (reuse) {
+            if (!context) context = ascii_context_create(input.width, input.height, fill.rgb, fill.width,
+                fill.height, edge.rgb, edge.width, edge.height, &options, 0, 0, error, sizeof(error));
+            if (!context || !ascii_context_convert(context, input.rgb, &output, error, sizeof(error))) goto failed;
+        } else if (!ascii_convert(input.rgb, input.width, input.height, fill.rgb, fill.width, fill.height,
                            edge.rgb, edge.width, edge.height, &options, 0, 0, &output, error, sizeof(error))) goto failed;
         double converted = milliseconds();
         if (!image_write_gray(argv[2], output.width, output.height, output.final_pixels, error, sizeof(error))) goto failed;
@@ -83,9 +91,11 @@ int main(int argc, char **argv) {
 failed:
         fprintf(stderr, "Benchmark failed: %s\n", error);
         ascii_output_free(&output); image_free(&input); image_free(&fill); image_free(&edge);
+        ascii_context_destroy(context);
         fclose(metrics); return 1;
     }
     fprintf(metrics, "\n]}\n");
+    ascii_context_destroy(context);
     if (fclose(metrics)) { perror("metrics write"); return 1; }
     return 0;
 }

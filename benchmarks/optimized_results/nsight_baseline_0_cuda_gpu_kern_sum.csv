@@ -1,0 +1,11 @@
+Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+32.3,814359,4,203589.8,203614.0,175422,231709,32396.2,"void gaussian_tiled<(bool)1>(const float *, float *, int, int, const float *, int)"
+26.6,669047,4,167261.8,167197.5,144062,190590,26770.6,"void gaussian_tiled<(bool)0>(const float *, float *, int, int, const float *, int)"
+11.6,291708,2,145854.0,145854.0,145822,145886,45.3,"direction_kernel(const float *, signed char *, int, int, float)"
+7.6,191806,2,95903.0,95903.0,94335,97471,2217.5,"dog_kernel(const float *, const float *, float *, unsigned long, float, float)"
+6.3,159166,2,79583.0,79583.0,79519,79647,90.5,"render_kernel(const int *, const signed char *, const unsigned char *, const unsigned char *, int, int, unsigned int, const float *, int, float *, int, int, int, int)"
+5.7,144510,2,72255.0,72255.0,71999,72511,362.0,"range_kernel(const float *, unsigned long, float2 *)"
+4.5,113182,2,56591.0,56591.0,56575,56607,22.6,"luminance_kernel(const unsigned char *, float *, unsigned long)"
+3.4,84447,2,42223.5,42223.5,41952,42495,384.0,"encode_kernel(const float *, unsigned char *, unsigned long, const float2 *, int)"
+1.8,45056,2,22528.0,22528.0,22400,22656,181.0,"cells_kernel(const float *, const signed char *, int *, signed char *, int, int, int, unsigned long, int, int)"
+0.2,5920,2,2960.0,2960.0,2848,3072,158.4,"range_finish_kernel(float2 *, int)"

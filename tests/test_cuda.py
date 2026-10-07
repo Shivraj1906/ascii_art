@@ -168,6 +168,11 @@ def gpu_tests():
         ("votes", diagonal, {"votes": 64}, ["--edge-votes", "64"]),
         ("alpha", rgba, {"bloom_sigma": 1.25}, ["--bloom-sigma", "1.25"]),
         ("wide_kernel", ramp[-16:, -16:], {"bloom_sigma": 110}, ["--bloom-sigma", "110"]),
+        ("fft_wide_kernel", ramp[-16:, -16:], {"bloom_sigma": 110},
+         ["--bloom-sigma", "110", "--bloom-method", "fft"]),
+        ("fft_random", rng.integers(0, 256, (37, 51, 3), dtype=np.uint8), {},
+         ["--bloom-method", "fft"]),
+        ("fft_white", np.full((17, 19, 3), 255, dtype=np.uint8), {}, ["--bloom-method", "fft"]),
         ("custom", ramp, {"sigma": 0.7, "scale": 2, "tau": 0.5, "dog_threshold": 0.45,
                             "bloom_threshold": 0.5, "bloom_sigma": 3},
          ["--sigma", "0.7", "--scale", "2", "--tau", "0.5", "--dog-threshold", "0.45",
@@ -197,6 +202,12 @@ def gpu_tests():
         Image.fromarray(fill).save(fill_path)
         result = run(source, outputs[0], "--fill-atlas", fill_path,
                      "--edge-atlas", edge_path, "--no-bloom", "--edge-votes", "64")
+        assert result.returncode == 0, result.stderr
+        assert not np.asarray(Image.open(outputs[0])).any()
+        # FFT roundoff must not become contrast when autoscaling a constant image.
+        Image.fromarray(np.full((17, 19, 3), 255, dtype=np.uint8)).save(source)
+        result = run(source, outputs[0], "--fill-atlas", fill_path,
+                     "--edge-atlas", edge_path, "--edge-votes", "64", "--bloom-method", "fft")
         assert result.returncode == 0, result.stderr
         assert not np.asarray(Image.open(outputs[0])).any()
         # Non-8 glyph dimensions and a different fill count are supported.

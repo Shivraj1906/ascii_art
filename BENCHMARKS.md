@@ -1,5 +1,7 @@
 # Python and CUDA benchmark report
 
+These measurements cover the first CUDA implementation, before the latest kernel and I/O optimizations. See [OPTIMIZATION.md](OPTIMIZATION.md) for the current version compared against that committed baseline.
+
 Measured 2026-10-07T08:07:15.652701+00:00 (UTC).
 
 ## Environment
@@ -48,7 +50,7 @@ All times are medians in milliseconds. Throughput is input megapixels divided by
 
 ## Variability, I/O, and memory
 
-Warmed total and P90 are milliseconds; ± is sample standard deviation. RSS is the process high-water mark across warmups and measured conversions, including imports/runtime/context overhead. CUDA image buffers are calculated from the exact requested allocations; they exclude CUDA context/driver storage and small Gaussian coefficient buffers. Host RSS and device memory are separate measures. CPU/GPU clocks are not locked, so timing variation can occasionally make a fresh-process run faster than a warmed run despite startup costs.
+Warmed total and P90 are milliseconds; ± is sample standard deviation. RSS is the process high-water mark across warmups and measured conversions, including imports/runtime/context overhead. CUDA image buffers are calculated from the exact requested allocations; they exclude CUDA context/driver storage and small Gaussian coefficient buffers. Linux ru_maxrss can retain the launcher’s pre-exec memory high-water mark, so RSS is an upper bound rather than isolated converter working memory. Host RSS and device memory are separate measures. CPU/GPU clocks are not locked, so timing variation can occasionally make a fresh-process run faster than a warmed run despite startup costs.
 
 | Input | Bloom | Impl. | Warm total ± SD | P90 | Min–max | Load | Conversion/API | Save | Host peak RSS MiB | CUDA image buffers MiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -218,6 +220,8 @@ Comparison uses decoded grayscale pixels, rather than PNG file bytes. PSNR uses 
 | 3840x2160 | on | 3840×2160 | 0.0170 | 0.1304 | 2 | 98.299 | 100.000 | 65.82 |
 
 ## Artifacts and reproduction
+
+Use baseline commit `3f711bb` in a separate checkout before running the commands below. The current checkout contains the optimized implementation.
 
 - [Raw timings, metadata, input and source SHA-256 hashes](benchmarks/results/results.json)
 - [All summary statistics and every stage/case](benchmarks/results/summary.csv)

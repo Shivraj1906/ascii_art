@@ -12,5 +12,8 @@ typedef struct {
 int image_load(const char *path, Image *image, char *error, size_t error_size);
 int image_write_gray(const char *path, int width, int height,
                      const uint8_t *pixels, char *error, size_t error_size);
+/* Lossless PNG: default level 1 favors throughput; levels 6..9 enable filters. */
+int image_write_gray_compressed(const char *path, int width, int height,
+                     const uint8_t *pixels, int compression, char *error, size_t error_size);
 void image_free(Image *image);
 #endif

@@ -1,0 +1,12 @@
+Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+47.0,3812018,2,1906009.0,1906009.0,1743179,2068839,230276.4,"void gaussian_coarsened<(bool)0, (int)-1, (int)16, (int)16, (bool)1, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+35.3,2862750,2,1431375.0,1431375.0,1431375,1431375,0.0,"void gaussian_coarsened<(bool)1, (int)-1, (int)8, (int)4, (bool)0, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+3.2,257020,2,128510.0,128510.0,120798,136222,10906.4,"void render_kernel<(bool)0>(const int *, const signed char *, const unsigned char *, const unsigned char *, int, int, unsigned int, const float *, int, float *, int, int, int, int, unsigned char *, float2 *)"
+3.1,247166,2,123583.0,123583.0,123103,124063,678.8,"void gaussian_coarsened<(bool)1, (int)13, (int)8, (int)4, (bool)0, (bool)1>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+2.8,229788,2,114894.0,114894.0,114782,115006,158.4,"sobel_cells_kernel(const unsigned char *, const float *, int *, signed char *, int, int, int, int, int, float)"
+2.1,173438,2,86719.0,86719.0,86591,86847,181.0,"void gaussian_coarsened<(bool)1, (int)8, (int)8, (int)4, (bool)0, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+2.0,165534,2,82767.0,82767.0,82399,83135,520.4,"void gaussian_coarsened<(bool)0, (int)13, (int)4, (int)8, (bool)0, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+1.7,141182,2,70591.0,70591.0,70271,70911,452.5,"void gaussian_coarsened<(bool)0, (int)8, (int)4, (int)8, (bool)0, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+1.4,116606,2,58303.0,58303.0,57567,59039,1040.9,"luminance_kernel(const unsigned char *, float *, unsigned long, float2 *, float)"
+1.1,91200,2,45600.0,45600.0,45184,46016,588.3,"encode_kernel(const float *, unsigned char *, unsigned long, const float2 *, int)"
+0.1,6752,2,3376.0,3376.0,3200,3552,248.9,"range_finish_kernel(float2 *, int)"

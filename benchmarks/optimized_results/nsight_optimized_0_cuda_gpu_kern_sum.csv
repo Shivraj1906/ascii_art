@@ -1,0 +1,8 @@
+Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+18.4,248957,2,124478.5,124478.5,114495,134462,14118.8,"sobel_cells_kernel(const unsigned char *, const float *, int *, signed char *, int, int, int, int, int, float)"
+18.3,247261,2,123630.5,123630.5,122878,124383,1064.2,"void gaussian_coarsened<(bool)1, (int)13, (int)8, (int)4, (bool)0, (bool)1>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+15.2,205758,2,102879.0,102879.0,102879,102879,0.0,"void render_kernel<(bool)1>(const int *, const signed char *, const unsigned char *, const unsigned char *, int, int, unsigned int, const float *, int, float *, int, int, int, int, unsigned char *, float2 *)"
+13.8,187038,2,93519.0,93519.0,82271,104767,15907.1,"void gaussian_coarsened<(bool)0, (int)13, (int)4, (int)8, (bool)0, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+12.7,171774,2,85887.0,85887.0,85663,86111,316.8,"void gaussian_coarsened<(bool)1, (int)8, (int)8, (int)4, (bool)0, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+11.3,152318,2,76159.0,76159.0,70655,81663,7783.8,"void gaussian_coarsened<(bool)0, (int)8, (int)4, (int)8, (bool)0, (bool)0>(const float *, float *, int, int, const float *, int, float, const float *, unsigned char *, float, float)"
+10.2,138366,2,69183.0,69183.0,66431,71935,3891.9,"luminance_kernel(const unsigned char *, float *, unsigned long, float2 *, float)"

@@ -30,8 +30,10 @@ static int load_png(const char *path, Image *out, char *error, size_t size) {
         png_image_free(&png);
         return fail(error, size, "image dimensions are too large or empty");
     }
-    /* Decode RGBA and discard alpha without compositing against a background. */
-    png.format = PNG_FORMAT_RGBA;
+    /* RGB inputs need no intermediate RGBA buffer or packing pass. Alpha inputs
+     * still discard alpha without compositing, matching the Python converter. */
+    int alpha = (png.format & PNG_FORMAT_FLAG_ALPHA) != 0;
+    png.format = alpha ? PNG_FORMAT_RGBA : PNG_FORMAT_RGB;
     uint8_t *rgba = malloc(PNG_IMAGE_SIZE(png));
     if (!rgba) {
         png_image_free(&png);
@@ -44,14 +46,24 @@ static int load_png(const char *path, Image *out, char *error, size_t size) {
         return 0;
     }
     size_t count = (size_t)png.width * png.height;
+    if (!alpha) {
+        out->rgb = rgba;
+        out->width = (int)png.width;
+        out->height = (int)png.height;
+        png_image_free(&png);
+        return 1;
+    }
     out->rgb = malloc(count * 3);
     if (!out->rgb) {
         free(rgba);
         png_image_free(&png);
         return fail(error, size, "out of memory decoding PNG");
     }
-    for (size_t i = 0; i < count; ++i)
-        memcpy(out->rgb + 3 * i, rgba + 4 * i, 3);
+    for (size_t i = 0; i < count; ++i) {
+        out->rgb[3*i] = rgba[4*i];
+        out->rgb[3*i+1] = rgba[4*i+1];
+        out->rgb[3*i+2] = rgba[4*i+2];
+    }
     out->width = (int)png.width;
     out->height = (int)png.height;
     free(rgba);
@@ -145,23 +157,65 @@ int image_load(const char *path, Image *image, char *error, size_t size) {
     return fail(error, size, "unsupported input: expected PNG or JPEG");
 }
 
+typedef struct {
+    png_structp png;
+    png_infop info;
+    FILE *file;
+    char message[256];
+} PngWriter;
+
+static void png_failure(png_structp png, png_const_charp message) {
+    PngWriter *ctx = png_get_error_ptr(png);
+    snprintf(ctx->message, sizeof(ctx->message), "%s", message);
+    png_longjmp(png, 1);
+}
+
+static void png_warning_ignored(png_structp png, png_const_charp message) {
+    (void)png; (void)message;
+}
+
+int image_write_gray_compressed(const char *path, int width, int height,
+                     const uint8_t *pixels, int compression, char *error, size_t size) {
+    if (width <= 0 || height <= 0 || !pixels || compression < 0 || compression > 9)
+        return fail(error, size, "invalid output image");
+    PngWriter *ctx = calloc(1, sizeof(*ctx));
+    if (!ctx) return fail(error, size, "out of memory writing PNG");
+    int success = 0;
+    ctx->png = png_create_write_struct(PNG_LIBPNG_VER_STRING, ctx, png_failure, png_warning_ignored);
+    if (!ctx->png) { free(ctx); return fail(error, size, "cannot initialize PNG writer"); }
+    if (setjmp(png_jmpbuf(ctx->png))) {
+        fail(error, size, ctx->message);
+        goto cleanup;
+    }
+    ctx->info = png_create_info_struct(ctx->png);
+    if (!ctx->info) png_error(ctx->png, "cannot allocate PNG metadata");
+    ctx->file = fopen(path, "wb");
+    if (!ctx->file) png_error(ctx->png, "cannot open PNG output");
+    png_init_io(ctx->png, ctx->file);
+    png_set_IHDR(ctx->png, ctx->info, width, height, 8, PNG_COLOR_TYPE_GRAY,
+                 PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_set_sRGB(ctx->png, ctx->info, PNG_sRGB_INTENT_PERCEPTUAL);
+    png_set_compression_level(ctx->png, compression);
+    /* Avoid five filter trials per row. Level 6+ trades time for smaller files. */
+    png_set_filter(ctx->png, PNG_FILTER_TYPE_BASE,
+                   compression >= 6 ? PNG_ALL_FILTERS : PNG_FILTER_NONE);
+    png_write_info(ctx->png, ctx->info);
+    for (int y = 0; y < height; ++y)
+        png_write_row(ctx->png, pixels + (size_t)y * width);
+    png_write_end(ctx->png, ctx->info);
+    success = 1;
+cleanup:
+    png_destroy_write_struct(&ctx->png, &ctx->info);
+    if (ctx->file && fclose(ctx->file) && success) {
+        fail(error, size, "cannot finish writing PNG"); success = 0;
+    }
+    free(ctx);
+    return success;
+}
+
 int image_write_gray(const char *path, int width, int height,
                      const uint8_t *pixels, char *error, size_t size) {
-    if (width <= 0 || height <= 0 || !pixels)
-        return fail(error, size, "invalid output image");
-    png_image png;
-    memset(&png, 0, sizeof(png));
-    png.version = PNG_IMAGE_VERSION;
-    png.width = (png_uint_32)width;
-    png.height = (png_uint_32)height;
-    png.format = PNG_FORMAT_GRAY;
-    if (!png_image_write_to_file(&png, path, 0, pixels, 0, NULL)) {
-        fail(error, size, png.message);
-        png_image_free(&png);
-        return 0;
-    }
-    png_image_free(&png);
-    return 1;
+    return image_write_gray_compressed(path, width, height, pixels, 1, error, size);
 }
 
 void image_free(Image *image) {
