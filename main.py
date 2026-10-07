@@ -1,66 +1,99 @@
+"""Command-line wrapper around the original, unmodified AsciiArt algorithm."""
+import argparse
+import json
+import os
+from pathlib import Path
+import resource
+from time import perf_counter
+
+os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ.setdefault("MPLCONFIGDIR", str(Path(__file__).parent / ".mpl-cache"))
 from AsciiArt import AsciiArt
 
-sigma = 2.0
-scale = 1.6
-tau = 1.0
-threshold = 0.3
 
-magnitude_threshold = 0.2
+def convert(input_path, output_path, bloom=True, edges_output=None, fill_output=None):
+    stages = {}
 
-char_size = 8 # dimension of a single character texture (8x8)
-downsample_threshold = 12
+    def timed(name, function, *args):
+        start = perf_counter()
+        result = function(*args)
+        stages[name] = stages.get(name, 0) + (perf_counter() - start) * 1000
+        return result
 
-bloom_threshold = 0.8
-bloom_sigma = 50
+    class MeasuredAsciiArt(AsciiArt):
+        def get_luminance(self):
+            timed("luminance", super().get_luminance)
 
-quantize_size = 10
+    start = perf_counter()
+    edges = timed("load_edges_and_luminance", MeasuredAsciiArt, str(input_path), "res/edgesASCII.png")
+    timed("dog", edges.difference_of_gaussian, 2.0, 1.6, 1.0, 0.3)
+    timed("sobel", edges.sobel)
+    timed("magnitude", edges.get_magnitude, 0.2)
+    timed("angles", edges.find_angle)
+    timed("direction_quantization", edges.edge_quantize)
+    timed("edge_voting", edges.controlled_downsample, edges.char_size, 12)
+    timed("edge_render", edges.to_ascii_art, True)
+    if edges_output:
+        timed("write_edges", edges.store_image, str(edges_output))
+    fill = timed("load_fill_and_luminance", MeasuredAsciiArt, str(input_path), "res/fillASCII.png")
+    input_width, input_height = fill.width, fill.height
+    if bloom:
+        timed("bloom_blur", fill.get_bloom_data, 0.8, 50)
+    timed("fill_downsample", fill.downsample, fill.char_size)
+    timed("fill_quantization", fill.quantize, 10)
+    timed("fill_render", fill.to_ascii_art, False)
+    if fill_output:
+        timed("write_fill", fill.store_image, str(fill_output))
+    timed("combine", fill.combine, edges)
+    if bloom:
+        timed("bloom_add", fill.add_bloom_data)
+    timed("write_final", fill.store_image, str(output_path))
+    width, height = fill.width, fill.height
+    del edges, fill
+    total_ms = (perf_counter() - start) * 1000
+    load_ms = stages.pop("load_edges_and_luminance") + stages.pop("load_fill_and_luminance") - stages["luminance"]
+    write_ms = sum(stages.pop(name, 0) for name in ("write_edges", "write_fill", "write_final"))
+    pipeline_ms = sum(stages.values())
+    return {"total_ms": total_ms, "load_ms": load_ms, "write_ms": write_ms,
+            "conversion_ms": pipeline_ms, "pipeline_ms": pipeline_ms,
+            "overhead_ms": total_ms - load_ms - write_ms - pipeline_ms,
+            "stage_ms": stages, "width": width, "height": height,
+            "input_width": input_width, "input_height": input_height,
+            "peak_rss_mib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024}
 
-image_path = 'images/sample_resize.png'
-image_name = image_path.split('/')[-1].split('.')[0]
-edges_texture = 'res/edgesASCII.png'
-fill_texture = 'res/fillASCII.png'
 
-# edge detection part
-edges = AsciiArt(image_path, edges_texture)
-# preprocessor for sobel filter to reduce noise
-# reference: https://users.cs.northwestern.edu/~sco590/winnemoeller-cag2012.pdf
-edges.difference_of_gaussian(sigma, scale, tau, threshold) 
+def main():
+    parser = argparse.ArgumentParser(description="Original Python ASCII image converter")
+    parser.add_argument("input", nargs="?", default="images/sample_resize.png", type=Path)
+    parser.add_argument("output", nargs="?", type=Path)
+    parser.add_argument("--no-bloom", action="store_true")
+    parser.add_argument("--edges-output", type=Path)
+    parser.add_argument("--fill-output", type=Path)
+    parser.add_argument("--metrics-json", type=Path)
+    parser.add_argument("--warmup", type=int, default=0)
+    parser.add_argument("--repeat", type=int, default=1)
+    args = parser.parse_args()
+    if args.warmup < 0 or args.repeat < 1:
+        parser.error("warmup must be nonnegative and repeat must be positive")
+    if args.output is None:
+        suffix = "final" if args.no_bloom else "final_with_bloom"
+        args.output = Path("output") / f"{args.input.stem}_{suffix}.png"
+        if args.edges_output is None:
+            args.edges_output = Path("output") / f"{args.input.stem}_edges.png"
+    sources = {args.input.resolve(), Path("res/edgesASCII.png").resolve(), Path("res/fillASCII.png").resolve()}
+    targets = [path.resolve() for path in (args.output, args.edges_output, args.fill_output, args.metrics_json) if path]
+    if len(targets) != len(set(targets)) or sources.intersection(targets):
+        parser.error("input, atlas, and output paths must not overlap")
+    samples = []
+    for index in range(args.warmup + args.repeat):
+        sample = convert(args.input, args.output, not args.no_bloom, args.edges_output, args.fill_output)
+        if index >= args.warmup:
+            samples.append(sample)
+    if args.metrics_json:
+        args.metrics_json.write_text(json.dumps({"implementation": "python", "warmup": args.warmup,
+                                                "samples": samples}, indent=2) + "\n")
+    print(f"{args.output}: {sample['width']}x{sample['height']}; conversion {sample['total_ms']:.3f} ms")
 
-# apply sobel filter and find angle based on gradient
-edges.sobel()
-edges.get_magnitude(magnitude_threshold)
-edges.find_angle()
 
-# quantize image
-edges.edge_quantize()
-edges.controlled_downsample(char_size, downsample_threshold)
-
-# convert edges to characters (slashes)
-edges.to_ascii_art(True) # edge_mode = True
-
-# store edge data (optional)
-edges.store_image(f'output/{image_name}_edges.png')
-
-# fill part
-fill = AsciiArt(image_path, fill_texture)
-
-# threshold image and then apply gaussian blur (optional)
-fill.get_bloom_data(bloom_threshold, bloom_sigma)
-
-# downsample image
-fill.downsample(char_size)
-
-# quantize into 10 partitions (since we have 10 ASCII characters)
-fill.quantize(quantize_size)
-
-# convert image to ASCII art
-fill.to_ascii_art(False) # edge_mode = false
-
-# combine edges and fill data into final output
-fill.combine(edges)
-
-# add optional bloom data
-fill.add_bloom_data()
-
-# store output
-fill.store_image(f'output/{image_name}_final_with_bloom.png')
+if __name__ == "__main__":
+    main()

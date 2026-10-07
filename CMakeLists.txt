@@ -1,0 +1,46 @@
+cmake_minimum_required(VERSION 3.24)
+# Override with -DCMAKE_CUDA_ARCHITECTURES=86, for example, for a specific GPU.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES 75 80 86 89 90)
+endif()
+project(ascii_cuda VERSION 1.0 LANGUAGES C CUDA)
+find_package(PNG REQUIRED)
+find_package(JPEG REQUIRED)
+add_library(ascii_image STATIC cuda/image_io.c)
+target_include_directories(ascii_image PUBLIC cuda)
+target_link_libraries(ascii_image PUBLIC PNG::PNG JPEG::JPEG)
+target_compile_features(ascii_image PUBLIC c_std_11)
+target_compile_options(ascii_image PRIVATE -Wall -Wextra -Wpedantic)
+add_library(ascii_gpu STATIC cuda/ascii_cuda.cu)
+target_include_directories(ascii_gpu PUBLIC cuda)
+set_target_properties(ascii_gpu PROPERTIES CUDA_STANDARD 14 CUDA_STANDARD_REQUIRED YES)
+add_executable(ascii_cuda cuda/main.c)
+target_compile_options(ascii_cuda PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(ascii_cuda PRIVATE ascii_gpu ascii_image m)
+set_target_properties(ascii_cuda PROPERTIES LINKER_LANGUAGE CUDA)
+add_executable(ascii_benchmark cuda/benchmark.c)
+target_compile_options(ascii_benchmark PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(ascii_benchmark PRIVATE ascii_gpu ascii_image m)
+set_target_properties(ascii_benchmark PROPERTIES LINKER_LANGUAGE CUDA)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(image_io_test tests/image_io_test.c)
+  target_link_libraries(image_io_test PRIVATE ascii_image)
+  add_test(NAME image_io COMMAND image_io_test)
+  add_test(NAME cli_help COMMAND ascii_cuda --help)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    add_test(NAME python_pipeline COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_python.py ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(python_pipeline PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} SKIP_RETURN_CODE 77)
+    add_test(NAME cli_validation COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cuda.py $<TARGET_FILE:ascii_cuda>
+      ${CMAKE_CURRENT_SOURCE_DIR} --host)
+    add_test(NAME cuda_reference COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cuda.py $<TARGET_FILE:ascii_cuda>
+      ${CMAKE_CURRENT_SOURCE_DIR} --gpu)
+    set_tests_properties(cuda_reference PROPERTIES SKIP_RETURN_CODE 77)
+  endif()
+endif()

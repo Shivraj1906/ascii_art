@@ -1,1 +1,8 @@
-__pycache__
+__pycache__/
+build*/
+.venv/
+.mpl-cache/
+benchmarks/work/
+benchmarks/results/*.nsys-rep
+benchmarks/results/*.sqlite
+benchmarks/results/*.prof
